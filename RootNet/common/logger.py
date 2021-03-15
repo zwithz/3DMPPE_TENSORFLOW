@@ -1,3 +1,9 @@
+# --------------------------------------------------------
+# 3DMPPE_ROOTNET
+# Copyright (c) 2019 Gyeongsik Moon
+# Licensed under The MIT License [see LICENSE for details]
+# --------------------------------------------------------
+
 import logging
 import os
 
