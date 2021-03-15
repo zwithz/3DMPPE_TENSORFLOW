@@ -5,7 +5,7 @@ from tensorflow.python.keras.utils import data_utils
 from residual_block import Bottleneck, WEIGHTS_HASHES, BASE_WEIGHTS_PATH
 
 
-class ResNetBackbone(tf.keras.Model):
+class ResNetBackbone(tf.keras.layers.Layer):
     def __init__(self, resnet_type):
         resnet_spec = {50: (Bottleneck, [3, 4, 6, 3], [64, 256, 512, 1024, 2048], 'resnet50v2'),
                        101: (Bottleneck, [3, 4, 23, 3], [64, 256, 512, 1024, 2048], 'resnet101v2'),
@@ -36,7 +36,12 @@ class ResNetBackbone(tf.keras.Model):
 
         return layers
 
-    def call(self, x, training=False):
+    def call(self, inputs, **kwargs):
+        training = False
+        if len(inputs) == 2:
+            x, training = inputs
+        else:
+            x = inputs
         x = self.conv1(x)
         x = self.bn1(x)
         x = tf.nn.relu(x)
