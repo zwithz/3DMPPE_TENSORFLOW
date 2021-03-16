@@ -144,3 +144,59 @@ class Human36M:
             })
 
         return data
+
+    def evaluate(self, preds, result_dir, epoch):
+        print('Evaluation start ...')
+        gts = self.data
+        assert len(gts) == len(preds)
+        sample_num = len(gts)
+
+        pred_save = []
+        # MRPE
+        error = np.zeros((sample_num, 1, 3))
+        # MRPE for each action
+        error_action = [[] for _ in range(len(self.action_name))]
+
+        for n in range(sample_num):
+            gt = gts[n]
+            f = gt['f']
+            c = gt['c']
+            bbox = gt['bbox']
+            gt_root = gt['root_cam']
+
+            # warp output to original image space
+            pred_root = preds[n]
+            pred_root[0] = pred_root[0] / cfg.output_shape[1] * bbox[2] + bbox[0]
+            pred_root[1] = pred_root[1] / cfg.output_shape[0] * bbox[3] + bbox[1]
+
+            # back-project to camera coordinate space
+            pred_root = pixel2cam(pred_root[None, :], f, c)[0]
+
+            # prediction save
+            img_id = gt['img_id']
+            pred_save.append({'image_id': img_id, 'bbox': bbox.tolist(), 'root_cam': pred_root.tolist()})
+
+            # error calculate
+            error[n] = (pred_root - gt_root) ** 2
+            img_name = gt['img_path']
+            action_idx = int(img_name[img_name.find('act') + 4: img_name.find('act') + 6]) - 2
+            error_action[action_idx].append(error[n].copy())
+
+        # total error
+        total_err = np.mean(np.sqrt(np.sum(error, axis=2)))
+        x_err = np.mean(np.sqrt(error[:, :, 0]))
+        y_err = np.mean(np.sqrt(error[:, :, 1]))
+        z_err = np.mean(np.sqrt(error[:, :, 2]))
+        eval_summary = 'MRPE >> tot: %.2f, x: %.2f, y: %.2f, z: %.2f\n' % (total_err, x_err, y_err, z_err)
+
+        # error for each actoin
+        for i in range(len(error_action)):
+            err = np.array(error_action[i])
+            err = np.mean(np.power(np.sum(err, axis=2), 0.5))
+            eval_summary += (self.action_name[i] + ': %.2f ' % err)
+        print(eval_summary)
+
+        output_path = osp.join(result_dir, 'bbox_root_human36m_output_epoch%d.json' % epoch)
+        with open(output_path, 'w') as f:
+            json.dump(pred_save, f)
+        print('Test result is saved at ' + output_path)
