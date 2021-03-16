@@ -1,0 +1,146 @@
+import os.path as osp
+from pycocotools.coco import COCO
+import json
+import numpy as np
+from config import cfg
+from utils.pose_utils import world2cam, cam2pixel, pixel2cam, process_bbox
+
+class Human36M:
+    def __init__(self, data_split):
+        self.data_split = data_split
+        self.img_dir = osp.join('..', 'data', 'Human36M', 'images')
+        self.annot_path = osp.join('..', 'data', 'Human36M', 'annotations')
+        self.human_bbox_dir = osp.join('..', 'data', 'Human36M', 'bbox', 'bbox_human36m_output.json')
+        self.joint_num = 17
+        self.joints_name = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle',
+                            'Torso', 'Neck', 'Nose', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist',
+                            'R_Shoulder', 'R_Elbow', 'R_Wrist')
+        self.root_idx = self.joints_name.index('Pelvis')
+        self.joints_have_depth = True
+        self.protocol = 2
+        self.data = self.load_data()
+        self.action_name = ['Directions', 'Discussion', 'Eating', 'Greeting', 'Phoning', 'Posing', 'Purchases',
+                            'Sitting', 'SittingDown', 'Smoking', 'Photo', 'Waiting', 'Walking', 'WalkDog',
+                            'WalkTogether']
+
+    def get_subsampling_ratio(self):
+        if self.data_split == 'train':
+            return 5
+        elif self.data_split == 'test':
+            return 64
+        else:
+            assert 0, print('Unknown subset')
+
+
+    def get_subject(self):
+        if self.data_split == 'train':
+            if self.protocol == 1:
+                subject = [1, 5, 6, 7, 8, 9]
+            elif self.protocol == 2:
+                subject = [1, 5, 6, 7, 8]
+        elif self.data_split == 'test':
+            if self.protocol == 1:
+                subject = [11]
+            elif self.protocol == 2:
+                subject = [9, 11]
+        else:
+            assert 0, print('Unknown subset')
+
+        return subject
+
+    def load_data(self):
+        print('Loading data of Human36M Protocol ' + str(self.protocol))
+        subject_list = self.get_subject()
+        sampling_ratio = self.get_subsampling_ratio()
+
+        # aggregate annotations from each subject
+        db = COCO()
+        cameras = {}
+        joints = {}
+
+        for subject in subject_list:
+            # data load
+            with open(osp.join(self.annot_path, 'Human36M_subject' + str(subject) + '_data.json'), 'r') as f:
+                annotation = json.load(f)
+            if len(db.dataset) == 0:
+                for k, v in annotation.items():
+                    db.dataset[k] = v
+            else:
+                for k, v in annotation.items():
+                    db.dataset[k] += v
+            # camera load
+            with open(osp.join(self.annot_path, 'Human36M_subject' + str(subject) + '_camera.json'), 'r') as f:
+                cameras[str(subject)] = json.load(f)
+            # joint coordinates load
+            with open(osp.join(self.annot_path, 'Human36M_subject' + str(subject) + '_joint_3d.json'), 'r') as f:
+                joints[str(subject)] = json.load(f)
+
+        db.createIndex()
+
+        if self.data_split == 'test' and not cfg.use_gt_bbox:
+            print('Get bounding box from ' + self.human_bbox_dir)
+            bbox_result = {}
+            with open(self.human_bbox_dir) as f:
+                annotation = json.load(f)
+            for i in range(len(annotation)):
+                bbox_result[str(annotation[i]['image_id'])] = np.array(annotation[i]['bbox'])
+        else:
+            print('Get bounding box from ground truth')
+
+        data = []
+        for aid in db.anns.keys():
+            ann = db.anns[aid]
+            image_id = ann['image_id']
+            img = db.loadImgs(image_id)[0]
+            img_path = osp.join(self.img_dir, img['file_name'])
+            img_width, img_height = img['width'], img['height']
+
+            # check subject and frame_idx
+            subject = img['subject']
+            frame_idx = img['frame_idx']
+            if subject not in subject:
+                continue
+            if frame_idx % sampling_ratio != 0:
+                continue
+
+            # camera parameter
+            cam_idx = img['cam_idx']
+            cam_param = cameras[str(subject)][str(cam_idx)]
+
+            R, t, f, c = np.array(cam_param['R'], dtype=np.float32), \
+                         np.array(cam_param['t'], dtype=np.float32), \
+                         np.array(cam_param['f'], dtype=np.float32), \
+                         np.array(cam_param['c'], dtype=np.float32)
+
+            # project world coordinate to camera, image (pixel) coordinate space
+            action_idx = img['action_idx']
+            subaction_idx = img['subactoin_idx']
+            root_world = np.array(joints[str(subject)][str(action_idx)][str(subaction_idx)],
+                                  dtype=np.float32)[self.root_idx]
+            root_camera = world2cam(root_world[None, :], R, t)[0]
+            root_image = cam2pixel(root_camera[None, :], f, c)[0]
+            root_vis = np.array(ann['keypoints_vis'])[self.root_idx, None]
+
+            # bbox load
+            if self.data_split == 'test' and not cfg.use_gt_bbox:
+                bbox = bbox_result[str(image_id)]
+            else:
+                bbox = np.array(ann['bbox'])
+            bbox = process_bbox(bbox, img_width, img_height)
+            if bbox is None:
+                continue
+            area = bbox[2] * bbox[3]
+
+            data.append({
+                'img_path': img_path,
+                'img_id': image_id,
+                'bbox': bbox,
+                'area': area,
+                'root_img': root_image,  # [org_img_x, org_img_y, depth]
+                'root_cam': root_camera,
+                'root_vis': root_vis,
+                'f': f,
+                'c': c
+            })
+
+        return data
