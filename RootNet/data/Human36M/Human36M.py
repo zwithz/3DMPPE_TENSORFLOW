@@ -1,9 +1,15 @@
+# --------------------------------------------------------
+# 3DMPPE_ROOTNET
+# Copyright (c) 2019 Gyeongsik Moon
+# Licensed under The MIT License [see LICENSE for details]
+# --------------------------------------------------------
+
 import os.path as osp
 from pycocotools.coco import COCO
 import json
 import numpy as np
-from config import cfg
-from utils.pose_utils import world2cam, cam2pixel, pixel2cam, process_bbox
+from ...main import cfg
+from ...common import world2cam, cam2pixel, pixel2cam, process_bbox
 
 class Human36M:
     def __init__(self, data_split):
