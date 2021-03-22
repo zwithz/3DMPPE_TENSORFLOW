@@ -6,7 +6,7 @@
 
 import numpy as np
 import tensorflow as tf
-from ...main import cfg
+from main.config import cfg
 
 
 # Convert the camera coordinates to the pixel coordinates.

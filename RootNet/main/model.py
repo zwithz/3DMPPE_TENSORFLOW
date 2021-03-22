@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.initializers import random_normal, constant
-from nets.resnet import ResNetBackbone
+from common.nets.resnet import ResNetBackbone
 from config import cfg
 
 
