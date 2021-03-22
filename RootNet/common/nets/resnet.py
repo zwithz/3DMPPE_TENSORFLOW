@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.initializers import random_normal
 from tensorflow.python.keras.utils import data_utils
 
-from residual_block import Bottleneck, WEIGHTS_HASHES, BASE_WEIGHTS_PATH
+from .residual_block import Bottleneck, WEIGHTS_HASHES, BASE_WEIGHTS_PATH
 
 
 class ResNetBackbone(tf.keras.layers.Layer):
@@ -13,12 +13,12 @@ class ResNetBackbone(tf.keras.layers.Layer):
 
         block, layers, channels, name = resnet_spec[resnet_type]
 
-        self.name = name
+        self.net_name = name
         self.inplanes = 64
 
         super(ResNetBackbone, self).__init__()
 
-        self.conv1 = tf.keras.layers.Conv2D(64, input_shape=3, kernel_size=7, strides=2, padding="same",
+        self.conv1 = tf.keras.layers.Conv2D(64, kernel_size=7, strides=2, padding="same",
                                             use_bias=False, kernel_initializer=random_normal(mean=0, stddev=0.001))
         self.bn1 = tf.keras.layers.BatchNormalization()
         self.maxpool = tf.keras.layers.MaxPooling2D(pool_size=3, strides=2, padding="same")
@@ -55,7 +55,7 @@ class ResNetBackbone(tf.keras.layers.Layer):
 
     def init_weights(self):
         file_name = self.name + '_weights_tf_dim_ordering_tf_kernels_notop.h5'
-        file_hash = WEIGHTS_HASHES[self.name][1]
+        file_hash = WEIGHTS_HASHES[self.net_name][1]
         weights_path = data_utils.get_file(
             file_name,
             BASE_WEIGHTS_PATH + file_name,
