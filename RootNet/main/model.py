@@ -4,7 +4,7 @@ from common.nets.resnet import ResNetBackbone
 from config import cfg
 
 
-class RootNet(tf.keras.layers.Layer):
+class RootNet(tf.keras.Model):
 
     def __int__(self):
         self.inplanes = 2048
@@ -78,7 +78,7 @@ class RootNet(tf.keras.layers.Layer):
                 m.bias_initializer = constant(0)
 
 
-class ResPoseNet(tf.keras.layers.Layer):
+class ResPoseNet(tf.keras.Model):
     def __init__(self, backbone, root):
         super(ResPoseNet, self).__init__()
         self.backbone = backbone
