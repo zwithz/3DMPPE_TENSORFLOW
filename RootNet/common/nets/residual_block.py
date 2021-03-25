@@ -45,10 +45,7 @@ class BasicBlock(tf.keras.layers.Layer):
         if self.downsample is not None:
             identity = self.downsample(inputs)
 
-        x += identity
-        x = tf.nn.relu(x)
-
-        return x
+        return tf.nn.relu(tf.keras.layers.add([identity, x]))
 
 
 class Bottleneck(tf.keras.layers.Layer):
@@ -91,7 +88,4 @@ class Bottleneck(tf.keras.layers.Layer):
         if self.downsample is not None:
             identity = self.downsample(inputs)
 
-        x += identity
-        x = tf.nn.relu(x)
-
-        return x
+        return tf.nn.relu(tf.keras.layers.add([identity, x]))
